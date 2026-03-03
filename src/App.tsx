@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence, useScroll, useSpring, useInView } from 'motion/react';
+import { motion, AnimatePresence, useScroll, useSpring, useInView, useMotionValue, useTransform } from 'motion/react';
 import {
   Github,
   Linkedin,
@@ -20,8 +20,123 @@ import {
   Menu,
   X,
   Send,
-  Download
+  Download,
+  Terminal,
+  Cpu,
+  Sparkles
 } from 'lucide-react';
+
+// --- Types ---
+interface MousePosition {
+  x: number;
+  y: number;
+}
+
+// --- Animation Components ---
+
+const BackgroundEffects = () => {
+  return (
+    <div className="fixed inset-0 overflow-hidden -z-10 pointer-events-none">
+      <motion.div
+        animate={{
+          x: [0, 100, 0],
+          y: [0, 50, 0],
+          scale: [1, 1.2, 1],
+        }}
+        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+        className="floating-blob w-[500px] h-[500px] bg-primary top-[-10%] left-[-10%]"
+      />
+      <motion.div
+        animate={{
+          x: [0, -100, 0],
+          y: [0, 100, 0],
+          scale: [1, 1.5, 1],
+        }}
+        transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+        className="floating-blob w-[600px] h-[600px] bg-secondary bottom-[-20%] right-[-10%]"
+      />
+      <motion.div
+        animate={{
+          x: [0, 50, 0],
+          y: [0, -50, 0],
+        }}
+        transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+        className="floating-blob w-[400px] h-[400px] bg-accent top-[40%] right-[10%] opacity-10"
+      />
+    </div>
+  );
+};
+
+const MagneticWrapper = ({ children, strength = 0.3 }: { children: React.ReactNode, strength?: number }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!ref.current) return;
+    const { clientX, clientY } = e;
+    const { left, top, width, height } = ref.current.getBoundingClientRect();
+    const x = (clientX - (left + width / 2)) * strength;
+    const y = (clientY - (top + height / 2)) * strength;
+    setPosition({ x, y });
+  };
+
+  const handleMouseLeave = () => {
+    setPosition({ x: 0, y: 0 });
+  };
+
+  return (
+    <motion.div
+      ref={ref}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      animate={{ x: position.x, y: position.y }}
+      transition={{ type: "spring", stiffness: 150, damping: 15, mass: 0.1 }}
+    >
+      {children}
+    </motion.div>
+  );
+};
+
+const Card3D = ({ children, className = "" }: { children: React.ReactNode, className?: string }) => {
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+
+  const mouseXSpring = useSpring(x);
+  const mouseYSpring = useSpring(y);
+
+  const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["10deg", "-10deg"]);
+  const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-10deg", "10deg"]);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const xPct = mouseX / width - 0.5;
+    const yPct = mouseY / height - 0.5;
+    x.set(xPct);
+    y.set(yPct);
+  };
+
+  const handleMouseLeave = () => {
+    x.set(0);
+    y.set(0);
+  };
+
+  return (
+    <motion.div
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{ rotateY, rotateX, transformStyle: "preserve-3d" }}
+      className={`relative ${className}`}
+    >
+      <div style={{ transform: "translateZ(50px)", transformStyle: "preserve-3d" }}>
+        {children}
+      </div>
+    </motion.div>
+  );
+};
 
 // --- Components ---
 
@@ -74,7 +189,7 @@ const Navbar = () => {
             href="#contact"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="px-5 py-2 rounded-full bg-white text-black text-sm font-bold hover:bg-primary hover:text-white transition-all"
+            className="px-5 py-2 rounded-full bg-white text-black text-sm font-bold hover:bg-primary hover:text-white transition-all interactive"
           >
             Hire Me
           </motion.a>
@@ -95,17 +210,24 @@ const Navbar = () => {
             exit={{ opacity: 0, height: 0 }}
             className="md:hidden glass border-t border-white/10 overflow-hidden"
           >
-            <div className="flex flex-col p-6 gap-4">
+            <div className="flex flex-col p-6 gap-4 bg-bg-dark/95 backdrop-blur-xl">
               {navLinks.map((link) => (
                 <a
                   key={link.name}
                   href={link.href}
                   onClick={() => setIsOpen(false)}
-                  className="text-lg font-medium text-white/70 hover:text-white"
+                  className="text-lg font-medium text-white/70 hover:text-white py-2 border-b border-white/5 last:border-0"
                 >
                   {link.name}
                 </a>
               ))}
+              <a
+                href="#contact"
+                onClick={() => setIsOpen(false)}
+                className="mt-2 px-5 py-3 rounded-xl bg-primary text-white text-center font-bold"
+              >
+                Hire Me
+              </a>
             </div>
           </motion.div>
         )}
@@ -151,12 +273,12 @@ const Hero = () => {
             </motion.div>
 
             <motion.h1
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="text-5xl md:text-7xl lg:text-8xl font-display font-bold mb-6 leading-tight"
+              transition={{ duration: 0.8, ease: "circOut" }}
+              className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-display font-bold mb-6 leading-tight"
             >
-              Hi, I'm <span className="text-gradient">Abhinand K K</span>
+              Hi, I'm <span className="text-gradient whitespace-nowrap">Abhinand K K</span>
             </motion.h1>
 
             <motion.div
@@ -184,10 +306,10 @@ const Hero = () => {
               transition={{ delay: 0.8 }}
               className="flex flex-wrap justify-center md:justify-start gap-4 mb-12"
             >
-              <a href="#projects" className="px-8 py-4 rounded-full bg-primary text-white font-bold hover:scale-105 transition-transform shadow-lg shadow-primary/25">
+              <a href="#projects" className="px-8 py-4 rounded-full bg-primary text-white font-bold hover:scale-105 transition-transform shadow-lg shadow-primary/25 interactive">
                 View Projects
               </a>
-              <a href="#contact" className="px-8 py-4 rounded-full glass text-white font-bold hover:bg-white/10 transition-all">
+              <a href="#contact" className="px-8 py-4 rounded-full glass text-white font-bold hover:bg-white/10 transition-all interactive">
                 Contact Me
               </a>
             </motion.div>
@@ -203,15 +325,16 @@ const Hero = () => {
                 { icon: <Linkedin />, href: 'https://www.linkedin.com/in/abhinandkk-mca' },
                 { icon: <Instagram />, href: 'https://www.instagram.com/abhinandkk_' },
               ].map((social, i) => (
-                <a
-                  key={i}
-                  href={social.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-3 rounded-full glass text-white/60 hover:text-primary hover:border-primary transition-all"
-                >
-                  {social.icon}
-                </a>
+                <MagneticWrapper key={i}>
+                  <a
+                    href={social.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-3 rounded-full glass text-white/60 hover:text-primary hover:border-primary transition-all interactive flex items-center justify-center"
+                  >
+                    {social.icon}
+                  </a>
+                </MagneticWrapper>
               ))}
             </motion.div>
           </div>
@@ -247,7 +370,7 @@ const About = () => {
   return (
     <section id="about" className="py-24 bg-white/[0.02]">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="grid md:grid-cols-2 gap-16 items-center">
+        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           <motion.div
             ref={ref}
             initial={{ opacity: 0, x: -50 }}
@@ -257,7 +380,7 @@ const About = () => {
           >
             <div className="aspect-square rounded-3xl overflow-hidden glass p-2">
               <img
-                src="https://storage.googleapis.com/static.run.app/aistudio/user_uploads/2026-03-01/abhinand_maroon_shirt.jpg"
+                src="images/profile.jpeg"
                 alt="Profile"
                 className="w-full h-full object-cover rounded-2xl grayscale hover:grayscale-0 transition-all duration-500"
                 referrerPolicy="no-referrer"
@@ -301,7 +424,7 @@ const About = () => {
               </div>
             </div>
 
-            <button className="flex items-center gap-2 px-6 py-3 rounded-full bg-white text-black font-bold hover:bg-primary hover:text-white transition-all">
+            <button className="flex items-center gap-2 px-6 py-3 rounded-full bg-white text-black font-bold hover:bg-primary hover:text-white transition-all interactive">
               <Download size={20} /> Download CV
             </button>
           </motion.div>
@@ -335,28 +458,34 @@ const Skills = () => {
           <p className="text-white/60">The technologies and tools I use to bring ideas to life.</p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {skillCategories.map((cat, i) => (
-            <motion.div
-              key={cat.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              className="glass p-8 rounded-3xl"
-            >
-              <h3 className="text-xl font-bold mb-6 text-primary">{cat.title}</h3>
-              <div className="flex flex-wrap gap-3">
-                {cat.skills.map((skill) => (
-                  <span
-                    key={skill}
-                    className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm hover:border-primary/50 transition-colors"
-                  >
-                    {skill}
-                  </span>
-                ))}
-              </div>
-            </motion.div>
+            <Card3D key={cat.title}>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="glass p-8 rounded-3xl h-full border-white/10 hover:border-primary/50 transition-colors"
+              >
+                <h3 className="text-xl font-bold mb-6 text-primary flex items-center gap-2">
+                  {i === 0 && <Terminal size={20} />}
+                  {i === 1 && <Cpu size={20} />}
+                  {i === 2 && <Sparkles size={20} />}
+                  {cat.title}
+                </h3>
+                <div className="flex flex-wrap gap-3">
+                  {cat.skills.map((skill) => (
+                    <span
+                      key={skill}
+                      className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm hover:border-primary/50 transition-colors"
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              </motion.div>
+            </Card3D>
           ))}
         </div>
       </div>
@@ -400,42 +529,43 @@ const Projects = () => {
           <p className="text-white/60">A selection of my recent work and experiments.</p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {projects.map((project, i) => (
-            <motion.div
-              key={project.name}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              className="group glass rounded-3xl overflow-hidden border-white/10 hover:border-primary/30 transition-all"
-            >
-              <div className="relative aspect-video overflow-hidden">
-                <img
-                  src={project.image}
-                  alt={project.name}
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  referrerPolicy="no-referrer"
-                />
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                  <a href={project.github} className="p-3 rounded-full bg-white text-black hover:bg-primary hover:text-white transition-colors">
-                    <Github size={20} />
-                  </a>
-                  <a href={project.live} className="p-3 rounded-full bg-white text-black hover:bg-primary hover:text-white transition-colors">
-                    <ExternalLink size={20} />
-                  </a>
+            <Card3D key={project.name} className="h-full">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="group glass rounded-3xl overflow-hidden border-white/10 hover:border-primary/30 transition-all h-full"
+              >
+                <div className="relative aspect-video overflow-hidden">
+                  <img
+                    src={project.image}
+                    alt={project.name}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
+                    <a href={project.github} className="p-3 rounded-full bg-white text-black hover:bg-primary hover:text-white transition-colors interactive">
+                      <Github size={20} />
+                    </a>
+                    <a href={project.live} className="p-3 rounded-full bg-white text-black hover:bg-primary hover:text-white transition-colors interactive">
+                      <ExternalLink size={20} />
+                    </a>
+                  </div>
                 </div>
-              </div>
-              <div className="p-6">
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {project.tech.map(t => (
-                    <span key={t} className="text-[10px] font-bold uppercase tracking-wider text-primary/80 px-2 py-1 rounded bg-primary/10 border border-primary/20">{t}</span>
-                  ))}
+                <div className="p-6">
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {project.tech.map(t => (
+                      <span key={t} className="text-[10px] font-bold uppercase tracking-wider text-primary/80 px-2 py-1 rounded bg-primary/10 border border-primary/20">{t}</span>
+                    ))}
+                  </div>
+                  <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">{project.name}</h3>
+                  <p className="text-white/60 text-sm line-clamp-2">{project.desc}</p>
                 </div>
-                <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">{project.name}</h3>
-                <p className="text-white/60 text-sm line-clamp-2">{project.desc}</p>
-              </div>
-            </motion.div>
+              </motion.div>
+            </Card3D>
           ))}
         </div>
       </div>
@@ -470,22 +600,23 @@ const Services = () => {
           <p className="text-white/60">How I can help you build your next big thing.</p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {services.map((service, i) => (
-            <motion.div
-              key={service.title}
-              initial={{ opacity: 0, scale: 0.9 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              className="glass p-10 rounded-3xl hover:bg-white/[0.05] transition-all group"
-            >
-              <div className="mb-6 p-4 rounded-2xl bg-white/5 w-fit group-hover:scale-110 transition-transform">
-                {service.icon}
-              </div>
-              <h3 className="text-xl font-bold mb-4">{service.title}</h3>
-              <p className="text-white/60 leading-relaxed">{service.desc}</p>
-            </motion.div>
+            <Card3D key={service.title} className="h-full">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="glass p-10 rounded-3xl hover:bg-white/[0.05] transition-all group h-full border-white/10 hover:border-primary/50"
+              >
+                <div className="mb-6 p-4 rounded-2xl bg-white/5 w-fit group-hover:scale-110 transition-transform">
+                  {service.icon}
+                </div>
+                <h3 className="text-xl font-bold mb-4">{service.title}</h3>
+                <p className="text-white/60 leading-relaxed">{service.desc}</p>
+              </motion.div>
+            </Card3D>
           ))}
         </div>
       </div>
@@ -497,7 +628,7 @@ const Contact = () => {
   return (
     <section id="contact" className="py-24 bg-white/[0.02]">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="grid md:grid-cols-2 gap-16">
+        <div className="grid lg:grid-cols-2 gap-16">
           <div>
             <h2 className="text-4xl font-display font-bold mb-6">Get In <span className="text-gradient">Touch</span></h2>
             <p className="text-lg text-white/60 mb-10">
@@ -543,7 +674,7 @@ const Contact = () => {
             className="glass p-8 rounded-3xl"
           >
             <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid sm:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-white/60 ml-1">Name</label>
                   <input
@@ -611,13 +742,14 @@ export default function App() {
   });
 
   return (
-    <div className="relative">
+    <div className="relative selection:bg-primary/30">
+      <BackgroundEffects />
       <motion.div
         className="fixed top-0 left-0 right-0 h-1 bg-primary z-[60] origin-left"
         style={{ scaleX }}
       />
       <Navbar />
-      <main>
+      <main className="relative z-10">
         <Hero />
         <About />
         <Skills />
